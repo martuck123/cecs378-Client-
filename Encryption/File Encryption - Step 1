@@ -1,0 +1,99 @@
+import os
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding, serialization
+from cryptography.hazmat.primitives import hashes, hmac
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+#module to encrypt a string value
+def Encryption(message, Encryptionkey):
+    
+    
+    if len(Encryptionkey) < 32:
+        return "Error. Key must be 32 bytes"
+    
+
+    backend = default_backend()
+    IV = os.urandom(16)
+    
+     
+    
+    padder = padding.PKCS7(128).padder()
+    padded_data = padder.update(message) + padder.finalize()
+    message = padded_data
+    
+    
+    cipher = Cipher(algorithms.AES(Encryptionkey), modes.CBC(IV), backend=backend)
+    
+    encryptor = cipher.encryptor()
+    
+    C = encryptor.update(message) + encryptor.finalize()
+    
+    h = hmac.HMAC(Encryptionkey, hashes.SHA256(), backend=default_backend())
+    h.update(C)
+    
+         
+    return (C, IV)
+
+
+#module to decrypt a string value
+def Decryption(ciphertext, IV, Encryptionkey):
+        cipher = Cipher(algorithms.AES(Encryptionkey), modes.CBC(IV), backend=default_backend())
+        
+        decryptor = cipher.decryptor()
+        
+        paddedPlaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        
+        unpadder = padding.PKCS7(128).unpadder()
+        plaintext = unpadder.update(paddedPlaintext) + unpadder.finalize()
+
+        return plaintext
+    
+#module to encrypt a file
+def EncryptFile(file):
+    Encryptionkey = os.urandom(32)
+    
+    
+    with open(file, 'rb') as f:
+        data = f.read()
+        
+    encryptedFileData = Encryption(data,Encryptionkey)
+    ext = os.path.splitext(file)[1]
+    encryptedFileData += (Encryptionkey, ext)
+    
+    filepath = input("Enter a file path to store the encrypted data: ")
+    result = open(filepath + ext, 'wb')
+    result.write(encryptedFileData[0])
+    
+    return encryptedFileData
+
+#module to decrypt a file
+def DecryptFile(file, IV, EncryptionKey, ext):
+    with open(file, 'rb') as f:
+        data = f.read()
+        
+    filePath = input("Enter a file path to store the decrypted data: ")
+        
+    fileName = filePath + ext
+    plaintext = Decryption(data, IV, EncryptionKey)
+    result = open(fileName, 'wb')
+    result.write(plaintext)
+    
+encryptionKey =  os.urandom(32)
+
+print("Original Message")
+encryptedMessage = Encryption(b"sample message", encryptionKey)
+print(encryptedMessage)
+
+print("\nDecrypted Message")
+decryptedMessage = Decryption(encryptedMessage[0], encryptedMessage[1], encryptionKey)
+print(decryptedMessage.decode('utf8'))
+
+file = os.path.abspath("lakers.jpg")
+
+ciphertext, iv, encryptionKey, ext = EncryptFile(file)
+file_path = input("Enter a file path for previously encrypted file: ")
+
+DecryptFile(file_path+ext, iv, encryptionKey, ext)
+
+print("Image has been encrypted and decrypted")
