@@ -10,9 +10,7 @@ from Crypto.PublicKey import RSA
 
 
 #module to encrypt a string value
-
-
-def MyfileEncryptMAC(filepath,Encryptionkey, HMACKey):
+def MyfileEncryptMAC(filepath,Encryptionkey,HMACKey):
 
    
     with open(filepath, 'rb') as f:
@@ -21,11 +19,11 @@ def MyfileEncryptMAC(filepath,Encryptionkey, HMACKey):
 
         
 
-    encryptedFileData = MyEncrypt(data,Encryptionkey, HMACKey)
+    encryptedFileData = MyEncrypt(data,Encryptionkey,HMACKey)
 
     ext = os.path.splitext(filepath)[1]
 
-    encryptedFileData += (Encryptionkey, HMACKey, ext)
+    encryptedFileData += (Encryptionkey,HMACKey,ext)
 
     
 
@@ -37,7 +35,7 @@ def MyfileEncryptMAC(filepath,Encryptionkey, HMACKey):
 
     
 
-    return encryptedFileData, encryptionkey, HMACKey
+    return encryptedFileData
 
 def MyfileDecrypt(filepath, IV, tag, EncryptionKey,HMACKey, ext):
 
@@ -146,48 +144,75 @@ def MyDecrypt(ciphertext, IV, tag, Encryptionkey, HMACkey):
 
         return plaintext
 
+#generate keys public and private 
+def Generatekeys():
+    
+    
+    #create key object
+    backend = default_backend()
+    key = rsa.generate_private_key(backend=backend, public_exponent=65537, key_size=2048)
+    
+    #private key
+    private_key = key.private_bytes(
+            encoding = serialization.Encoding.PEM,
+            format = serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption()
+            )
+    with open("private_Key.pem", 'wb') as private_pem:
+        private_pem.write(private_key)
+        private_pem.close()
+        
+    #public key 
+    public_key = key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+    with open("public_Key.pem", 'wb') as public_pem:
+        public_pem.write(public_key)
+        public_pem.close()        
+    
 
-
-
+#Uses RSA to encrypt key     
 def MyRSAEncrypt(filepath, RSA_Publickey_filepath):
      #Call MyfileEncrypt
      Encryptionkey = os.urandom(32)
      HMACKey = os.urandom(32)
-     ciphertext, iv, tag, encryptionKey, HMACKey, ext = MyfileEncryptMAC(filepath,Encryptionkey, HMACKey)
+     ciphertext = MyfileEncryptMAC(filepath,Encryptionkey,HMACKey)
      
-     msg = str(Encryptionkey) +  str(HMACKey)
+     msg = Encryptionkey +  HMACKey
      
      if os.path.exists(RSA_Publickey_filepath):
          key = RSA.importKey(open(RSA_Publickey_filepath).read())
          RSACipher = PKCS1_OAEP.new(key)
          RSACiphertext = RSACipher.encrypt(msg)
-     else: 
-        f = open(RSA_Publickey_filepath,'w+')
-        key = RSA.importKey(open(RSA_Publickey_filepath).write())
-        RSACipher = PKCS1_OAEP.new(key)
-        RSACiphertext = RSACipher.encrypt(msg)
-     return RSACipher,cipertext, iv, tag, ext
+     
+     return RSACiphertext,ciphertext
      
      
 
 
-def MyRSADecrypt(filepath,RSACiphertext, Cipher, IV, tag, ext, RSA_Privatekey_filepath)
+   #decrypta RSA encrypted message
+def MyRSADecrypt(filepath,RSACiphertext, Cipher, IV, tag, ext, RSA_Privatekey_filepath):
     
      key = RSA.importKey(open(RSA_Privatekey_filepath).read())
      RSACipher = PKCS1_OAEP.new(key)
-     message = cipher.decrypt(RSACiphertext)
-      
-    Encryptionkey = message[0:255]
-    HMACKey = message[256:511]   
+     message = RSACipher.decrypt(RSACiphertext)
+     Encryptionkey = Cipher[3]
+     HMACKey = Cipher[4]
     
-    MyfileDecrypt(filepath+ext, Cipher, IV, tag, Encryptionkey, HMACKey,ext)
+     MyfileDecrypt(filepath+ext, IV, tag, Encryptionkey, HMACKey,ext)
     
     
       
       
       
       
-      
+Generatekeys()    
+RSACiphertext, Ciphertext = MyRSAEncrypt('test2.txt','publicKey2.pem')  
+tag = Ciphertext[2] 
+IV = Ciphertext[1]
+ext = Ciphertext[5]
+MyRSADecrypt('test2.txt', RSACiphertext, Ciphertext, IV, tag, ext, 'privateKey2.pem')
       
       
       
