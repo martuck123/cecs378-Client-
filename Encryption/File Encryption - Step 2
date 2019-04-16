@@ -4,99 +4,136 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding, serialization
 from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import rsa
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.PublicKey import RSA
+
+
 
 #module to encrypt a string value
-def Encryption(message, Encryptionkey, HMACkey):
-    
-    
-    if len(Encryptionkey) < 32:
-        return "Error. Key must be 32 bytes"
-    
-
-    backend = default_backend()
-    IV = os.urandom(16)
-    
-     
-    
-    padder = padding.PKCS7(128).padder()
-    padded_data = padder.update(message) + padder.finalize()
-    message = padded_data
-    
-    
-    cipher = Cipher(algorithms.AES(Encryptionkey), modes.CBC(IV), backend=backend)
-    
-    encryptor = cipher.encryptor()
-    
-    C = encryptor.update(message) + encryptor.finalize()
-    
-    h = hmac.HMAC(Encryptionkey, hashes.SHA256(), backend=default_backend())
-    h.update(C)
-    tag = h.finalize()
-    
-         
-    return (C, IV, tag)
 
 
-#module to decrypt a string value
-def Decryption(ciphertext, IV, tag, Encryptionkey, HMACkey):
-        cipher = Cipher(algorithms.AES(Encryptionkey), modes.CBC(IV), backend=default_backend())
-        
-        decryptor = cipher.decryptor()
-        
-        paddedPlaintext = decryptor.update(ciphertext) + decryptor.finalize()
-        
-        unpadder = padding.PKCS7(128).unpadder()
-        plaintext = unpadder.update(paddedPlaintext) + unpadder.finalize()
-
-        return plaintext
-    
-#module to encrypt a file
-def EncryptFile(file):
-    Encryptionkey = os.urandom(32)
-    HMACKey = os.urandom(32)
-    
-    
-    with open(file, 'rb') as f:
+def MyfileEncryptMAC(filepath,Encryptionkey,HMACKey):
+    with open(filepath, 'rb') as f:
         data = f.read()
-        
-    encryptedFileData = Encryption(data,Encryptionkey, HMACKey)
-    ext = os.path.splitext(file)[1]
-    encryptedFileData += (Encryptionkey, HMACKey, ext)
-    
+    encryptedFileData = MyEncrypt(data,Encryptionkey,HMACKey)
+    ext = os.path.splitext(filepath)[1]
+    encryptedFileData += (Encryptionkey,HMACKey,ext)
     filepath = input("Enter a file path to store the encrypted data: ")
     result = open(filepath + ext, 'wb')
     result.write(encryptedFileData[0])
     
     return encryptedFileData
 
-#module to decrypt a file
-def DecryptFile(file, IV, tag, EncryptionKey,HMACKey, ext):
-    with open(file, 'rb') as f:
+def MyfileDecrypt(filepath, IV, tag, EncryptionKey,HMACKey, ext):
+    with open(filepath, 'rb') as f:
         data = f.read()
-        
     filePath = input("Enter a file path to store the decrypted data: ")
-        
     fileName = filePath + ext
-    plaintext = Decryption(data, IV, tag, EncryptionKey, HMACKey)
+    plaintext = MyDecrypt(data, IV, tag, EncryptionKey, HMACKey)
     result = open(fileName, 'wb')
     result.write(plaintext)
     
-encryptionKey =  os.urandom(32)
-HMACKey = os.urandom(32)
+    
+def MyEncrypt(message, Encryptionkey, HMACkey):
+    if len(Encryptionkey) < 32:
+        return "Error. Key must be 32 bytes"
+    
+    backend = default_backend()
+    IV = os.urandom(16)
+    padder = padding.PKCS7(128).padder()
+    padded_data = padder.update(message) + padder.finalize()
+    message = padded_data
+    cipher = Cipher(algorithms.AES(Encryptionkey), modes.CBC(IV), backend=backend)
+    encryptor = cipher.encryptor()
+    C = encryptor.update(message) + encryptor.finalize()
+    h = hmac.HMAC(Encryptionkey, hashes.SHA256(), backend=default_backend())
+    h.update(C)
+    tag = h.finalize()
+    return (C, IV, tag)
 
-print("Original Message")
-encryptedMessage = Encryption(b"sample message", encryptionKey, HMACKey)
-print(encryptedMessage)
 
-print("\nDecrypted Message")
-decryptedMessage = Decryption(encryptedMessage[0], encryptedMessage[1], encryptedMessage[2], encryptionKey, HMACKey)
-print(decryptedMessage.decode('utf8'))
 
-file = os.path.abspath("lakers.jpg")
 
-ciphertext, iv, tag, encryptionKey, HMACKey, ext = EncryptFile(file)
-file_path = input("Enter a file path for previously encrypted file: ")
 
-DecryptFile(file_path+ext, iv, tag, encryptionKey, HMACKey, ext)
+#module to decrypt a string value
 
-print("Image has been encrypted and decrypted")
+def MyDecrypt(ciphertext, IV, tag, Encryptionkey, HMACkey):
+
+        cipher = Cipher(algorithms.AES(Encryptionkey), modes.CBC(IV), backend=default_backend())
+        decryptor = cipher.decryptor()
+        paddedPlaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        unpadder = padding.PKCS7(128).unpadder()
+        plaintext = unpadder.update(paddedPlaintext) + unpadder.finalize()
+        return plaintext
+
+#generate keys public and private 
+def Generatekeys():
+    
+    
+    #create key object
+    backend = default_backend()
+    key = rsa.generate_private_key(backend=backend, public_exponent=65537, key_size=2048)
+    
+    #private key
+    private_key = key.private_bytes(
+            encoding = serialization.Encoding.PEM,
+            format = serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption()
+            )
+    with open("private_Key.pem", 'wb') as private_pem:
+        private_pem.write(private_key)
+        private_pem.close()
+        
+    #public key 
+    public_key = key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+    with open("public_Key.pem", 'wb') as public_pem:
+        public_pem.write(public_key)
+        public_pem.close()        
+    
+
+    
+def MyRSAEncrypt(filepath, RSA_Publickey_filepath):
+     #Call MyfileEncrypt
+     Encryptionkey = os.urandom(32)
+     HMACKey = os.urandom(32)
+     ciphertext = MyfileEncryptMAC(filepath,Encryptionkey,HMACKey)
+     msg = Encryptionkey +  HMACKey
+     
+     if os.path.exists(RSA_Publickey_filepath):
+         key = RSA.importKey(open(RSA_Publickey_filepath).read())
+         RSACipher = PKCS1_OAEP.new(key)
+         RSACiphertext = RSACipher.encrypt(msg)
+     
+     return RSACiphertext,ciphertext
+     
+     
+
+
+def MyRSADecrypt(filepath,RSACiphertext, Cipher, IV, tag, ext, RSA_Privatekey_filepath):
+    
+     key = RSA.importKey(open(RSA_Privatekey_filepath).read())
+     RSACipher = PKCS1_OAEP.new(key)
+     message = RSACipher.decrypt(RSACiphertext)
+     Encryptionkey = message[:32]
+     HMACKey = message[-32:]
+     MyfileDecrypt(filepath+ext, IV, tag, Encryptionkey, HMACKey, ext)
+    
+    
+      
+      
+      
+      
+#Generatekeys()    
+RSACiphertext, Ciphertext = MyRSAEncrypt('test.txt','publicKey2.pem')  
+tag = Ciphertext[2] 
+IV = Ciphertext[1]
+ext = Ciphertext[5]
+MyRSADecrypt('test2', RSACiphertext, Ciphertext, IV, tag, ext, 'privateKey2.pem')
+      
+      
+      
+      
+      
